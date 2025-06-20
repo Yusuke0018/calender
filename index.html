@@ -249,6 +249,33 @@
             
             // タイトル
             const [year, month] = yearMonth.split('.');
+
+            // 祝日判定用関数（2025年のみ対応）
+            function isHolidayDate(year, month, day) {
+                const key = `${year}-${parseInt(month)}-${parseInt(day)}`;
+                const holidays = new Set([
+                    '2025-1-1',  // 元日
+                    '2025-1-13', // 成人の日
+                    '2025-2-11', // 建国記念の日
+                    '2025-2-23', // 天皇誕生日
+                    '2025-2-24', // 振替休日
+                    '2025-3-20', // 春分の日
+                    '2025-4-29', // 昭和の日
+                    '2025-5-3',  // 憲法記念日
+                    '2025-5-4',  // みどりの日
+                    '2025-5-5',  // こどもの日
+                    '2025-5-6',  // 振替休日
+                    '2025-7-21', // 海の日
+                    '2025-8-11', // 山の日
+                    '2025-9-15', // 敬老の日
+                    '2025-9-23', // 秋分の日
+                    '2025-10-13', // スポーツの日
+                    '2025-11-3', // 文化の日
+                    '2025-11-23', // 勤労感謝の日
+                    '2025-11-24'  // 振替休日
+                ]);
+                return holidays.has(key);
+            }
             ctx.font = 'bold 26px Arial';
             ctx.fillStyle = '#2c5aa0';
             ctx.textAlign = 'center';
@@ -327,10 +354,11 @@
                     const day = dayRow[actualIndex];
                     
                     // セルの背景色
-                    if (day === '土') {
-                        ctx.fillStyle = '#e6f2ff';
-                    } else if (day === '日') {
+                    const isHoliday = isHolidayDate(year, month, date);
+                    if (isHoliday || day === '日') {
                         ctx.fillStyle = '#ffe6e6';
+                    } else if (day === '土') {
+                        ctx.fillStyle = '#e6f2ff';
                     } else {
                         ctx.fillStyle = 'white';
                     }
