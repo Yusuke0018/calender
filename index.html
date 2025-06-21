@@ -98,6 +98,32 @@
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+        .project-section {
+            margin-top: 40px;
+        }
+        .project-section textarea {
+            width: 100%;
+            height: 150px;
+            margin-top: 10px;
+            padding: 10px;
+            font-size: 14px;
+        }
+        .project-section input[type="text"], .project-section select {
+            padding: 5px;
+            margin-top: 10px;
+        }
+        .project-section button {
+            margin-left: 5px;
+            padding: 6px 12px;
+        }
+        .project-section pre {
+            background: #f8f9fa;
+            padding: 10px;
+            white-space: pre-wrap;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -116,6 +142,19 @@
             <canvas id="calendarCanvas"></canvas>
             <br>
             <a id="downloadLink" class="download-button" download="診療カレンダー.png">カレンダー画像をダウンロード</a>
+        </div>
+
+        <div class="project-section" id="projectSection">
+            <h2>プロジェクトメモ</h2>
+            <div>
+                <select id="projectSelect"></select>
+                <input type="text" id="projectNameInput" placeholder="新規プロジェクト名">
+                <button id="addProjectButton">追加</button>
+            </div>
+            <textarea id="notesInput" placeholder="今日の改善点・適応事項を入力"></textarea>
+            <button id="saveNotesButton">保存</button>
+            <h3>保存済みメモ</h3>
+            <pre id="notesDisplay"></pre>
         </div>
     </div>
 
@@ -515,6 +554,72 @@
             });
             
             canvasContainer.style.display = 'block';
+        }
+
+        // ---------------------- プロジェクトメモ機能 ----------------------
+        const projectSelect = document.getElementById('projectSelect');
+        const projectNameInput = document.getElementById('projectNameInput');
+        const addProjectButton = document.getElementById('addProjectButton');
+        const notesInput = document.getElementById('notesInput');
+        const saveNotesButton = document.getElementById('saveNotesButton');
+        const notesDisplay = document.getElementById('notesDisplay');
+
+        let projects = JSON.parse(localStorage.getItem('projects') || '[]');
+
+        function updateProjectSelect() {
+            projectSelect.innerHTML = '';
+            projects.forEach(p => {
+                const option = document.createElement('option');
+                option.value = p;
+                option.textContent = p;
+                projectSelect.appendChild(option);
+            });
+        }
+
+        function getTodayKey(project) {
+            const today = new Date().toISOString().split('T')[0];
+            return `notes-${project}-${today}`;
+        }
+
+        function loadNotes() {
+            const project = projectSelect.value;
+            if (!project) {
+                notesInput.value = '';
+                notesDisplay.textContent = '';
+                return;
+            }
+            const key = getTodayKey(project);
+            const notes = localStorage.getItem(key) || '';
+            notesInput.value = notes;
+            notesDisplay.textContent = notes;
+        }
+
+        addProjectButton.addEventListener('click', () => {
+            const name = projectNameInput.value.trim();
+            if (name && !projects.includes(name)) {
+                projects.push(name);
+                localStorage.setItem('projects', JSON.stringify(projects));
+                updateProjectSelect();
+                projectSelect.value = name;
+                loadNotes();
+            }
+            projectNameInput.value = '';
+        });
+
+        projectSelect.addEventListener('change', loadNotes);
+
+        saveNotesButton.addEventListener('click', () => {
+            const project = projectSelect.value;
+            if (!project) return;
+            const key = getTodayKey(project);
+            localStorage.setItem(key, notesInput.value);
+            notesDisplay.textContent = notesInput.value;
+        });
+
+        updateProjectSelect();
+        if (projects.length > 0) {
+            projectSelect.value = projects[0];
+            loadNotes();
         }
     </script>
 </body>
