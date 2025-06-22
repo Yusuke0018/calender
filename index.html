@@ -355,7 +355,9 @@
                     
                     // セルの背景色
                     const isHoliday = isHolidayDate(year, month, date);
-                    if (isHoliday || day === '日') {
+                    if (isHoliday) { // 祝日
+                        ctx.fillStyle = '#ffc0cb';
+                    } else if (day === '日') {
                         ctx.fillStyle = '#ffe6e6';
                     } else if (day === '土') {
                         ctx.fillStyle = '#e6f2ff';
