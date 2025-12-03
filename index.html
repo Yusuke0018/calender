@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>クリニック診療カレンダー生成システム</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
         body {
             font-family: 'Helvetica Neue', Arial, 'Hiragino Sans', sans-serif;
             background-color: #f5f5f5;
@@ -12,7 +15,7 @@
             padding: 20px;
         }
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             background-color: white;
             padding: 30px;
@@ -23,6 +26,13 @@
             color: #2c5aa0;
             text-align: center;
             margin-bottom: 30px;
+        }
+        h2 {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #2c5aa0;
+            padding-bottom: 8px;
         }
         .upload-area {
             border: 2px dashed #ccc;
@@ -53,6 +63,7 @@
             cursor: pointer;
             font-size: 16px;
             transition: background-color 0.3s;
+            border: none;
         }
         .upload-button:hover {
             background-color: #1e3d6f;
@@ -78,6 +89,7 @@
             font-size: 16px;
             text-decoration: none;
             transition: background-color 0.3s;
+            border: none;
         }
         .download-button:hover {
             background-color: #218838;
@@ -98,36 +110,335 @@
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+
+        /* プレビュー編集パネル */
+        .edit-panel {
+            display: none;
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 10px;
+            border: 1px solid #dee2e6;
+        }
+        .edit-panel.active {
+            display: block;
+        }
+        .edit-section {
+            margin-bottom: 25px;
+        }
+        .doctor-mapping {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px;
+        }
+        .doctor-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        .doctor-item label {
+            min-width: 80px;
+            font-weight: bold;
+            color: #555;
+        }
+        .doctor-item input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .doctor-item input:focus {
+            outline: none;
+            border-color: #2c5aa0;
+            box-shadow: 0 0 0 2px rgba(44, 90, 160, 0.2);
+        }
+        .doctor-item .color-indicator {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        /* 日付別編集 */
+        .date-edit-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+        }
+        .date-edit-row {
+            display: flex;
+            align-items: center;
+            padding: 10px 15px;
+            border-bottom: 1px solid #eee;
+            gap: 15px;
+        }
+        .date-edit-row:last-child {
+            border-bottom: none;
+        }
+        .date-edit-row:hover {
+            background-color: #f8f9fa;
+        }
+        .date-edit-row.sunday {
+            background-color: #fff0f0;
+        }
+        .date-edit-row.saturday {
+            background-color: #f0f8ff;
+        }
+        .date-edit-row.holiday {
+            background-color: #ffe4e9;
+        }
+        .date-label {
+            min-width: 100px;
+            font-weight: bold;
+        }
+        .date-edit-row input {
+            padding: 6px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 120px;
+        }
+        .date-edit-row input:focus {
+            outline: none;
+            border-color: #2c5aa0;
+        }
+        .date-edit-row .sub-text {
+            font-size: 12px;
+            color: #888;
+            width: 100px;
+        }
+        .date-edit-row select {
+            padding: 6px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        /* ボタングループ */
+        .button-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 10px 25px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            border: none;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background-color: #2c5aa0;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #1e3d6f;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #545b62;
+        }
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        .btn-success:hover {
+            background-color: #218838;
+        }
+
+        /* タブ */
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #dee2e6;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 14px;
+            color: #666;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.3s;
+        }
+        .tab:hover {
+            color: #2c5aa0;
+        }
+        .tab.active {
+            color: #2c5aa0;
+            border-bottom-color: #2c5aa0;
+            font-weight: bold;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        /* 凡例設定 */
+        .legend-settings {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        .legend-item input[type="color"] {
+            width: 40px;
+            height: 30px;
+            border: none;
+            cursor: pointer;
+        }
+        .legend-item input[type="text"] {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>クリニック診療カレンダー生成システム</h1>
-        
+
         <div class="upload-area" id="uploadArea">
             <p>CSVファイルをドラッグ＆ドロップまたはクリックして選択</p>
             <label for="fileInput" class="upload-button">ファイルを選択</label>
             <input type="file" id="fileInput" accept=".csv">
         </div>
-        
+
         <div class="status" id="status"></div>
-        
+
+        <!-- プレビュー編集パネル -->
+        <div class="edit-panel" id="editPanel">
+            <h2>📝 プレビュー編集</h2>
+
+            <div class="tabs">
+                <button class="tab active" data-tab="doctor-names">医師名設定</button>
+                <button class="tab" data-tab="date-details">日付別編集</button>
+                <button class="tab" data-tab="legend-settings">凡例設定</button>
+            </div>
+
+            <!-- 医師名設定タブ -->
+            <div class="tab-content active" id="doctor-names">
+                <p style="color: #666; margin-bottom: 15px;">CSVのニックネームに対応する表示名を設定できます。</p>
+                <div class="doctor-mapping" id="doctorMapping">
+                    <!-- 動的に生成 -->
+                </div>
+            </div>
+
+            <!-- 日付別編集タブ -->
+            <div class="tab-content" id="date-details">
+                <p style="color: #666; margin-bottom: 15px;">各日付の表示内容を個別に編集できます。</p>
+                <div class="date-edit-container" id="dateEditContainer">
+                    <!-- 動的に生成 -->
+                </div>
+            </div>
+
+            <!-- 凡例設定タブ -->
+            <div class="tab-content" id="legend-settings">
+                <p style="color: #666; margin-bottom: 15px;">凡例の色とテキストをカスタマイズできます。</p>
+                <div class="legend-settings" id="legendSettings">
+                    <div class="legend-item">
+                        <input type="color" id="legendColor1" value="#2c5aa0">
+                        <input type="text" id="legendText1" value="外科・小児科対応">
+                    </div>
+                    <div class="legend-item">
+                        <input type="color" id="legendColor2" value="#f0ad4e">
+                        <input type="text" id="legendText2" value="内視鏡検査対応">
+                    </div>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-primary" id="regenerateBtn">🔄 カレンダー再生成</button>
+                <button class="btn btn-secondary" id="resetBtn">↩️ 初期状態に戻す</button>
+            </div>
+        </div>
+
         <div class="canvas-container" id="canvasContainer">
             <canvas id="calendarCanvas"></canvas>
             <br>
-            <a id="downloadLink" class="download-button" download="診療カレンダー.png">カレンダー画像をダウンロード</a>
+            <div class="button-group">
+                <a id="downloadLink" class="download-button" download="診療カレンダー.png">📥 カレンダー画像をダウンロード</a>
+            </div>
         </div>
     </div>
 
     <script>
-        // ファイルアップロード処理
+        // グローバル状態管理
+        const state = {
+            rawData: null,
+            yearMonth: '',
+            year: '',
+            month: '',
+            dateRow: [],
+            dayRow: [],
+            scheduleData: {},
+            // 医師のニックネーム → 表示名マッピング
+            doctorDisplayNames: {
+                'ロックン': '大岩',
+                'ぽん': '平佐',
+                '早渕': '早淵',
+                '淀キリ応援': '非常勤',
+                '内科応援': '非常勤',
+                'たか': '欅田',
+                '大西': '大西',
+                '内視鏡応援': '内視鏡応援'
+            },
+            // 日付別のカスタム表示
+            dateCustomDisplay: {},
+            // 凡例設定
+            legend: {
+                color1: '#2c5aa0',
+                text1: '外科・小児科対応',
+                color2: '#f0ad4e',
+                text2: '内視鏡検査対応'
+            }
+        };
+
+        // DOM要素
         const fileInput = document.getElementById('fileInput');
         const uploadArea = document.getElementById('uploadArea');
-        const status = document.getElementById('status');
+        const statusEl = document.getElementById('status');
         const canvasContainer = document.getElementById('canvasContainer');
         const canvas = document.getElementById('calendarCanvas');
         const ctx = canvas.getContext('2d');
         const downloadLink = document.getElementById('downloadLink');
+        const editPanel = document.getElementById('editPanel');
+
+        // タブ切り替え
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab).classList.add('active');
+            });
+        });
 
         // ドラッグ＆ドロップイベント
         uploadArea.addEventListener('dragover', (e) => {
@@ -154,6 +465,21 @@
             }
         });
 
+        // 再生成ボタン
+        document.getElementById('regenerateBtn').addEventListener('click', () => {
+            updateStateFromUI();
+            drawCalendar();
+            showStatus('カレンダーを再生成しました。', 'success');
+        });
+
+        // リセットボタン
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            if (state.rawData) {
+                processCSV(state.rawData);
+                showStatus('初期状態に戻しました。', 'success');
+            }
+        });
+
         function handleFile(file) {
             if (!file.name.endsWith('.csv')) {
                 showStatus('CSVファイルを選択してください。', 'error');
@@ -164,8 +490,9 @@
             reader.onload = (e) => {
                 try {
                     const csvData = e.target.result;
+                    state.rawData = csvData;
                     processCSV(csvData);
-                    showStatus('カレンダーを生成しました。', 'success');
+                    showStatus('カレンダーを生成しました。編集パネルで内容をカスタマイズできます。', 'success');
                 } catch (error) {
                     showStatus('エラーが発生しました: ' + error.message, 'error');
                     console.error('Error:', error);
@@ -175,9 +502,9 @@
         }
 
         function showStatus(message, type) {
-            status.textContent = message;
-            status.className = `status ${type}`;
-            status.style.display = 'block';
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+            statusEl.style.display = 'block';
         }
 
         function parseCSV(csvText) {
@@ -187,175 +514,361 @@
 
         function processCSV(csvText) {
             const data = parseCSV(csvText);
-            
-            // 年月を取得
-            let yearMonth = '';
-            let dateRow = [];
-            let dayRow = [];
-            let scheduleData = {};
-            
+
+            state.dateRow = [];
+            state.dayRow = [];
+            state.scheduleData = {};
+            state.dateCustomDisplay = {};
+
             // データを解析
             for (let i = 0; i < data.length; i++) {
                 const row = data[i];
-                
-                // 年月を含む行を探す
-                if (row[1] && row[1].toString().includes('2025.')) {
-                    yearMonth = row[1];
-                    dateRow = row.slice(3, 34); // 日付データ
+
+                // 年月を含む行を探す（2025または2026）
+                if (row[1] && (row[1].toString().includes('2025.') || row[1].toString().includes('2026.'))) {
+                    state.yearMonth = row[1];
+                    const [year, month] = state.yearMonth.split('.');
+                    state.year = year;
+                    state.month = month;
+                    state.dateRow = row.slice(3, 34);
                     if (i + 1 < data.length) {
-                        dayRow = data[i + 1].slice(3, 34); // 曜日データ
+                        state.dayRow = data[i + 1].slice(3, 34);
                     }
                 }
-                
+
                 // 医師のスケジュールを取得
-                if (row[1] === 'ロックン') { // 大岩医師
-                    scheduleData['大岩'] = row.slice(3, 34);
-                } else if (row[1] === 'ぽん') { // 平佐医師
-                    scheduleData['平佐'] = row.slice(3, 34);
-                } else if (row[1] === '淀キリ応援') { // 非常勤医師
-                    scheduleData['非常勤'] = row.slice(3, 34);
-                } else if (row[1] === '早渕') { // 早淵医師
-                    scheduleData['早淵'] = row.slice(3, 34);
+                const nickname = row[1];
+                if (nickname === 'ロックン') {
+                    state.scheduleData['ロックン'] = row.slice(3, 34);
+                } else if (nickname === 'ぽん') {
+                    state.scheduleData['ぽん'] = row.slice(3, 34);
+                } else if (nickname === '淀キリ応援' || nickname === '内科応援') {
+                    state.scheduleData['非常勤'] = row.slice(3, 34);
+                } else if (nickname === '早渕') {
+                    state.scheduleData['早渕'] = row.slice(3, 34);
+                } else if (nickname === 'たか') {
+                    state.scheduleData['たか'] = row.slice(3, 34);
+                } else if (nickname === '大西') {
+                    state.scheduleData['大西'] = row.slice(3, 34);
+                } else if (nickname === '内視鏡応援') {
+                    state.scheduleData['内視鏡応援'] = row.slice(3, 34);
                 }
             }
-            
+
+            // 編集パネルを構築
+            buildEditPanel();
+
             // カレンダーを描画
-            drawCalendar(yearMonth, dateRow, dayRow, scheduleData);
+            drawCalendar();
         }
 
-        function drawCalendar(yearMonth, dateRow, dayRow, scheduleData) {
-            // カレンダーのサイズ設定
+        function buildEditPanel() {
+            editPanel.classList.add('active');
+
+            // 医師名マッピングUI
+            const doctorMappingEl = document.getElementById('doctorMapping');
+            doctorMappingEl.innerHTML = '';
+
+            const doctorColors = {
+                'ロックン': '#2c5aa0',
+                'ぽん': '#f0ad4e',
+                '早渕': '#28a745',
+                '非常勤': '#6c757d',
+                'たか': '#17a2b8',
+                '大西': '#dc3545',
+                '内視鏡応援': '#ffc107'
+            };
+
+            Object.keys(state.scheduleData).forEach(nickname => {
+                const displayName = state.doctorDisplayNames[nickname] || nickname;
+                const color = doctorColors[nickname] || '#666';
+
+                const item = document.createElement('div');
+                item.className = 'doctor-item';
+                item.innerHTML = `
+                    <div class="color-indicator" style="background-color: ${color}"></div>
+                    <label>${nickname}:</label>
+                    <input type="text" data-nickname="${nickname}" value="${displayName}" placeholder="表示名">
+                `;
+                doctorMappingEl.appendChild(item);
+            });
+
+            // 日付別編集UI
+            buildDateEditUI();
+        }
+
+        function buildDateEditUI() {
+            const container = document.getElementById('dateEditContainer');
+            container.innerHTML = '';
+
+            for (let i = 0; i < state.dateRow.length; i++) {
+                const date = state.dateRow[i];
+                const day = state.dayRow[i];
+
+                if (!date || date === '') continue;
+
+                const isHoliday = isHolidayDate(state.year, state.month, date);
+                let rowClass = 'date-edit-row';
+                if (isHoliday) rowClass += ' holiday';
+                else if (day === '日') rowClass += ' sunday';
+                else if (day === '土') rowClass += ' saturday';
+
+                // 現在の表示内容を計算
+                const currentDisplay = calculateDisplayForDate(i);
+
+                const row = document.createElement('div');
+                row.className = rowClass;
+                row.innerHTML = `
+                    <div class="date-label">${state.month}/${date} (${day})${isHoliday ? ' 祝' : ''}</div>
+                    <input type="text" data-date-index="${i}" value="${currentDisplay.mainText}" placeholder="メイン表示">
+                    <input type="text" data-date-index="${i}" data-field="subText" value="${currentDisplay.subText}" placeholder="サブテキスト" class="sub-text-input">
+                `;
+                container.appendChild(row);
+            }
+        }
+
+        function calculateDisplayForDate(index) {
+            // カスタム設定があればそれを使用
+            if (state.dateCustomDisplay[index]) {
+                return state.dateCustomDisplay[index];
+            }
+
+            const day = state.dayRow[index];
+            const schedules = {};
+
+            Object.keys(state.scheduleData).forEach(nickname => {
+                const value = state.scheduleData[nickname][index];
+                if (value && value !== '') {
+                    schedules[nickname] = value;
+                }
+            });
+
+            let mainText = '';
+            let subText = '';
+
+            const getDisplayName = (nickname) => state.doctorDisplayNames[nickname] || nickname;
+
+            const isSunday = day === '日';
+            const isSaturday = day === '土';
+
+            if (isSunday) {
+                // 日曜日
+                if (schedules['ロックン']) {
+                    mainText = getDisplayName('ロックン');
+                    if (parseInt(schedules['ロックン']) >= 5) {
+                        subText = '18時まで';
+                    }
+                } else if (schedules['たか']) {
+                    mainText = getDisplayName('たか');
+                    if (parseInt(schedules['たか']) >= 5) {
+                        subText = '18時まで';
+                    }
+                } else if (schedules['非常勤']) {
+                    mainText = getDisplayName('非常勤');
+                    if (parseInt(schedules['非常勤']) >= 5) {
+                        subText = '18時まで';
+                    }
+                }
+            } else if (isSaturday) {
+                // 土曜日
+                if (schedules['早渕']) {
+                    mainText = getDisplayName('早渕');
+                    if (schedules['早渕'] === '4' || schedules['早渕'] === 4) {
+                        subText = 'AMのみ';
+                    }
+                } else if (schedules['ロックン'] && schedules['ぽん']) {
+                    mainText = getDisplayName('ロックン');
+                    if (schedules['ロックン'] === '4' || schedules['ぽん'] === '4') {
+                        subText = 'AMのみ';
+                    }
+                } else if (schedules['たか']) {
+                    mainText = getDisplayName('たか');
+                    if (schedules['たか'] === '4' || schedules['たか'] === 4) {
+                        subText = 'AMのみ';
+                    }
+                } else if (schedules['非常勤'] && (schedules['非常勤'] === '4' || schedules['非常勤'] === 4)) {
+                    mainText = 'AM：' + getDisplayName('非常勤');
+                    subText = 'AMのみ';
+                } else if (schedules['ロックン'] && (schedules['ロックン'] === '4' || schedules['ロックン'] === 4)) {
+                    mainText = 'AM：' + getDisplayName('ロックン');
+                    subText = 'AMのみ';
+                } else if (schedules['ロックン']) {
+                    mainText = getDisplayName('ロックン');
+                } else if (schedules['ぽん']) {
+                    mainText = getDisplayName('ぽん');
+                    if (schedules['ぽん'] === '4' || schedules['ぽん'] === 4) {
+                        subText = 'AMのみ';
+                    }
+                } else if (schedules['非常勤']) {
+                    mainText = getDisplayName('非常勤');
+                }
+            } else {
+                // 平日
+                if (schedules['早渕']) {
+                    mainText = getDisplayName('早渕');
+                } else if (schedules['大西']) {
+                    mainText = getDisplayName('大西');
+                } else if (schedules['ロックン'] && schedules['ぽん'] && schedules['ロックン'] !== '4') {
+                    mainText = getDisplayName('ロックン');
+                } else if (schedules['非常勤'] && (schedules['非常勤'] === '4' || schedules['非常勤'] === 4)) {
+                    mainText = 'AM：' + getDisplayName('非常勤');
+                    subText = 'PM：' + getDisplayName('ぽん');
+                } else if (schedules['ロックン'] && (schedules['ロックン'] === '4' || schedules['ロックン'] === 4)) {
+                    mainText = 'AM：' + getDisplayName('ロックン');
+                    subText = 'PM：' + getDisplayName('ぽん');
+                } else if (schedules['たか'] && (schedules['たか'] === '4' || schedules['たか'] === 4)) {
+                    mainText = 'AM：' + getDisplayName('たか');
+                    subText = 'PM：' + getDisplayName('ぽん');
+                } else if (schedules['ロックン']) {
+                    mainText = getDisplayName('ロックン');
+                } else if (schedules['たか']) {
+                    mainText = getDisplayName('たか');
+                } else if (schedules['ぽん']) {
+                    mainText = getDisplayName('ぽん');
+                } else if (schedules['非常勤']) {
+                    mainText = getDisplayName('非常勤');
+                }
+            }
+
+            return { mainText, subText };
+        }
+
+        function updateStateFromUI() {
+            // 医師名マッピングを更新
+            document.querySelectorAll('#doctorMapping input').forEach(input => {
+                const nickname = input.dataset.nickname;
+                state.doctorDisplayNames[nickname] = input.value;
+            });
+
+            // 日付別表示を更新
+            document.querySelectorAll('#dateEditContainer .date-edit-row').forEach(row => {
+                const inputs = row.querySelectorAll('input');
+                if (inputs.length >= 2) {
+                    const index = inputs[0].dataset.dateIndex;
+                    state.dateCustomDisplay[index] = {
+                        mainText: inputs[0].value,
+                        subText: inputs[1].value
+                    };
+                }
+            });
+
+            // 凡例設定を更新
+            state.legend.color1 = document.getElementById('legendColor1').value;
+            state.legend.text1 = document.getElementById('legendText1').value;
+            state.legend.color2 = document.getElementById('legendColor2').value;
+            state.legend.text2 = document.getElementById('legendText2').value;
+        }
+
+        // 祝日判定（2025年・2026年対応）
+        function isHolidayDate(year, month, day) {
+            const key = `${year}-${parseInt(month)}-${parseInt(day)}`;
+            const holidays = new Set([
+                // 2025年
+                '2025-1-1', '2025-1-13', '2025-2-11', '2025-2-23', '2025-2-24',
+                '2025-3-20', '2025-4-29', '2025-5-3', '2025-5-4', '2025-5-5', '2025-5-6',
+                '2025-7-21', '2025-8-11', '2025-9-15', '2025-9-23',
+                '2025-10-13', '2025-11-3', '2025-11-23', '2025-11-24',
+                // 2026年
+                '2026-1-1', '2026-1-12', '2026-2-11', '2026-2-23',
+                '2026-3-20', '2026-4-29', '2026-5-3', '2026-5-4', '2026-5-5', '2026-5-6',
+                '2026-7-20', '2026-8-11', '2026-9-21', '2026-9-22', '2026-9-23',
+                '2026-10-12', '2026-11-3', '2026-11-23'
+            ]);
+            return holidays.has(key);
+        }
+
+        function drawCalendar() {
             const cellWidth = 140;
             const cellHeight = 90;
             const headerHeight = 100;
             const dayHeaderHeight = 40;
             const cols = 7;
-            
-            // 最初の日の曜日を判定してオフセットを計算
-            const firstDay = dayRow[0];
+
+            const firstDay = state.dayRow[0];
             const dayMap = {'日': 0, '月': 1, '火': 2, '水': 3, '木': 4, '金': 5, '土': 6};
             const startOffset = dayMap[firstDay] || 0;
-            
-            // 必要な行数を計算（オフセットを考慮）
-            const totalDays = dateRow.filter(d => d && d !== '').length;
+
+            const totalDays = state.dateRow.filter(d => d && d !== '').length;
             const rows = Math.ceil((totalDays + startOffset) / 7);
-            
+
             canvas.width = cellWidth * cols + 40;
             canvas.height = headerHeight + dayHeaderHeight + cellHeight * rows + 40;
-            
-            // 背景を白に
+
+            // 背景
             ctx.fillStyle = 'white';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // タイトル
-            const [year, month] = yearMonth.split('.');
 
-            // 祝日判定用関数（2025年のみ対応）
-            function isHolidayDate(year, month, day) {
-                const key = `${year}-${parseInt(month)}-${parseInt(day)}`;
-                const holidays = new Set([
-                    '2025-1-1',  // 元日
-                    '2025-1-13', // 成人の日
-                    '2025-2-11', // 建国記念の日
-                    '2025-2-23', // 天皇誕生日
-                    '2025-2-24', // 振替休日
-                    '2025-3-20', // 春分の日
-                    '2025-4-29', // 昭和の日
-                    '2025-5-3',  // 憲法記念日
-                    '2025-5-4',  // みどりの日
-                    '2025-5-5',  // こどもの日
-                    '2025-5-6',  // 振替休日
-                    '2025-7-21', // 海の日
-                    '2025-8-11', // 山の日
-                    '2025-9-15', // 敬老の日
-                    '2025-9-23', // 秋分の日
-                    '2025-10-13', // スポーツの日
-                    '2025-11-3', // 文化の日
-                    '2025-11-23', // 勤労感謝の日
-                    '2025-11-24'  // 振替休日
-                ]);
-                return holidays.has(key);
-            }
+            // タイトル
             ctx.font = 'bold 26px Arial';
             ctx.fillStyle = '#2c5aa0';
             ctx.textAlign = 'center';
-            ctx.fillText(`${month}月診療カレンダー`, canvas.width / 2, 35);
-            
-            // 凡例を右寄せで配置
+            ctx.fillText(`${state.month}月診療カレンダー`, canvas.width / 2, 35);
+
+            // 凡例
             ctx.font = '14px Arial';
             ctx.textAlign = 'left';
-            
             const legendX = canvas.width - 350;
             const legendY = 65;
-            
-            // 青い丸の凡例
-            ctx.fillStyle = '#2c5aa0';
+
+            ctx.fillStyle = state.legend.color1;
             ctx.beginPath();
             ctx.arc(legendX, legendY, 8, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = '#333';
-            ctx.fillText('…外科・小児科対応', legendX + 15, legendY + 5);
-            
-            // 黄色い丸の凡例
-            ctx.fillStyle = '#f0ad4e';
+            ctx.fillText(`…${state.legend.text1}`, legendX + 15, legendY + 5);
+
+            ctx.fillStyle = state.legend.color2;
             ctx.beginPath();
             ctx.arc(legendX + 180, legendY, 8, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = '#333';
-            ctx.fillText('…内視鏡検査対応', legendX + 195, legendY + 5);
-            
-            // 曜日ヘッダーを描画
+            ctx.fillText(`…${state.legend.text2}`, legendX + 195, legendY + 5);
+
+            // 曜日ヘッダー
             const dayHeaders = ['日', '月', '火', '水', '木', '金', '土'];
             ctx.font = 'bold 16px Arial';
             ctx.textAlign = 'center';
-            
+
             for (let col = 0; col < cols; col++) {
                 const x = col * cellWidth + 20 + cellWidth / 2;
                 const y = headerHeight + 25;
-                
-                // 曜日の背景色
-                if (col === 0) { // 日曜日
+
+                if (col === 0) {
                     ctx.fillStyle = '#ffcccc';
-                } else if (col === 6) { // 土曜日
+                } else if (col === 6) {
                     ctx.fillStyle = '#cce5ff';
                 } else {
                     ctx.fillStyle = '#f0f0f0';
                 }
-                
+
                 ctx.fillRect(col * cellWidth + 20, headerHeight, cellWidth, dayHeaderHeight);
-                
-                // 曜日文字
                 ctx.fillStyle = '#333';
                 ctx.fillText(dayHeaders[col], x, y);
             }
-            
-            // 曜日ヘッダーの枠線
+
             ctx.strokeStyle = '#dee2e6';
             ctx.strokeRect(20, headerHeight, cellWidth * cols, dayHeaderHeight);
-            
-            // カレンダーグリッドを描画
+
+            // カレンダーグリッド
             for (let row = 0; row < rows; row++) {
                 for (let col = 0; col < cols; col++) {
                     const cellIndex = row * cols + col;
-                    
-                    // 最初の週のオフセット処理
-                    if (cellIndex < startOffset) {
-                        continue;
-                    }
-                    
+
+                    if (cellIndex < startOffset) continue;
+
                     const actualIndex = cellIndex - startOffset;
-                    if (actualIndex >= dateRow.length || !dateRow[actualIndex] || dateRow[actualIndex] === '') {
+                    if (actualIndex >= state.dateRow.length || !state.dateRow[actualIndex] || state.dateRow[actualIndex] === '') {
                         continue;
                     }
-                    
+
                     const x = col * cellWidth + 20;
                     const y = row * cellHeight + headerHeight + dayHeaderHeight;
-                    const date = dateRow[actualIndex];
-                    const day = dayRow[actualIndex];
-                    
-                    // セルの背景色
-                    const isHoliday = isHolidayDate(year, month, date);
-                    if (isHoliday) { // 祝日
+                    const date = state.dateRow[actualIndex];
+                    const day = state.dayRow[actualIndex];
+
+                    // セル背景色
+                    const isHoliday = isHolidayDate(state.year, state.month, date);
+                    if (isHoliday) {
                         ctx.fillStyle = '#ffc0cb';
                     } else if (day === '日') {
                         ctx.fillStyle = '#ffe6e6';
@@ -365,157 +878,81 @@
                         ctx.fillStyle = 'white';
                     }
                     ctx.fillRect(x, y, cellWidth, cellHeight);
-                    
+
                     // 枠線
                     ctx.strokeStyle = '#dee2e6';
                     ctx.strokeRect(x, y, cellWidth, cellHeight);
-                    
+
                     // 日付
                     ctx.fillStyle = '#333';
                     ctx.font = 'bold 20px Arial';
                     ctx.textAlign = 'left';
                     ctx.fillText(date, x + 10, y + 25);
-                    
-                    // 医師情報を解析
-                    const oiwaSchedule = scheduleData['大岩'] ? scheduleData['大岩'][actualIndex] : '';
-                    const hirasaSchedule = scheduleData['平佐'] ? scheduleData['平佐'][actualIndex] : '';
-                    const hijoukinSchedule = scheduleData['非常勤'] ? scheduleData['非常勤'][actualIndex] : '';
-                    const hayabuchiSchedule = scheduleData['早淵'] ? scheduleData['早淵'][actualIndex] : '';
-                    
-                    // 診療内容を判定
-                    const isOiwaPresent = oiwaSchedule && oiwaSchedule !== '';
-                    const isHirasaPresent = hirasaSchedule && hirasaSchedule !== '';
-                    const isHijoukinPresent = hijoukinSchedule && hijoukinSchedule !== '';
-                    const isHayabuchiPresent = hayabuchiSchedule && hayabuchiSchedule !== '';
-                    const isSunday = day === '日';
-                    
-                    // 丸印を描画（右上に配置）
+
+                    // 医師スケジュール判定
+                    const schedules = {};
+                    Object.keys(state.scheduleData).forEach(nickname => {
+                        const value = state.scheduleData[nickname][actualIndex];
+                        if (value && value !== '') {
+                            schedules[nickname] = value;
+                        }
+                    });
+
+                    // 丸印描画
                     let circleX = x + cellWidth - 25;
                     let circleY = y + 25;
                     let circleCount = 0;
-                    
-                    // 外科・小児科（青い丸）- 大岩医師がいる日
-                    if (isOiwaPresent) {
-                        ctx.fillStyle = '#2c5aa0';
+
+                    // 外科・小児科（大岩、欅田がいる日）
+                    if (schedules['ロックン'] || schedules['たか']) {
+                        ctx.fillStyle = state.legend.color1;
                         ctx.beginPath();
                         ctx.arc(circleX - (circleCount * 35), circleY, 13, 0, Math.PI * 2);
                         ctx.fill();
                         circleCount++;
                     }
-                    
-                    // 内視鏡（黄色い丸）- 平佐医師がいる日または日曜日
-                    if (isHirasaPresent || isSunday) {
-                        ctx.fillStyle = '#f0ad4e';
+
+                    // 内視鏡（平佐、内視鏡応援がいる日、または日曜日）
+                    if (schedules['ぽん'] || schedules['内視鏡応援'] || day === '日') {
+                        ctx.fillStyle = state.legend.color2;
                         ctx.beginPath();
                         ctx.arc(circleX - (circleCount * 35), circleY, 13, 0, Math.PI * 2);
                         ctx.fill();
                     }
-                    
-                    // 医師名を表示
+
+                    // 医師名表示
+                    const display = state.dateCustomDisplay[actualIndex] || calculateDisplayForDate(actualIndex);
+
                     ctx.font = '14px Arial';
                     ctx.fillStyle = '#333';
                     ctx.textAlign = 'center';
                     const textX = x + cellWidth / 2;
                     let textY = y + 55;
-                    
-                    // 医師名の記載ルール適用
-                    if (isSunday) {
-                        // 日曜日の処理
-                        if (isOiwaPresent) {
-                            ctx.fillText('大岩', textX, textY);
-                            // 5以上の場合は18時までと追記
-                            if (oiwaSchedule >= 5) {
-                                ctx.font = '12px Arial';
-                                ctx.fillText('18時まで', textX, textY + 18);
-                                ctx.font = '14px Arial';
-                            }
-                        } else if (isHijoukinPresent) {
-                            ctx.fillText('非常勤', textX, textY);
-                            // 5以上の場合は18時までと追記
-                            if (hijoukinSchedule >= 5) {
-                                ctx.font = '12px Arial';
-                                ctx.fillText('18時まで', textX, textY + 18);
-                                ctx.font = '14px Arial';
-                            }
-                        }
-                    } else if (day === '土') {
-                        // 土曜日の処理
-                        if (isHayabuchiPresent) {
-                            ctx.fillText('早淵', textX, textY);
-                            if (hayabuchiSchedule === 4 || hayabuchiSchedule === '4') {
-                                ctx.font = '12px Arial';
-                                ctx.fillText('AMのみです。', textX, textY + 18);
-                                ctx.font = '14px Arial';
-                            }
-                        } else if (isOiwaPresent && isHirasaPresent) {
-                            ctx.fillText('大岩', textX, textY);
-                            if (oiwaSchedule === 4 || oiwaSchedule === '4' || hirasaSchedule === 4 || hirasaSchedule === '4') {
-                                ctx.font = '12px Arial';
-                                ctx.fillText('AMのみです。', textX, textY + 18);
-                                ctx.font = '14px Arial';
-                            }
-                        } else if (hijoukinSchedule === 4 || hijoukinSchedule === '4') {
-                            ctx.fillText('AM：非常勤', textX, textY);
-                            ctx.font = '12px Arial';
-                            ctx.fillText('AMのみです。', textX, textY + 18);
-                            ctx.font = '14px Arial';
-                        } else if (oiwaSchedule === 4 || oiwaSchedule === '4') {
-                            ctx.fillText('AM：大岩', textX, textY);
-                            ctx.font = '12px Arial';
-                            ctx.fillText('AMのみです。', textX, textY + 18);
-                            ctx.font = '14px Arial';
-                        } else if (isOiwaPresent) {
-                            ctx.fillText('大岩', textX, textY);
-                        } else if (isHirasaPresent) {
-                            ctx.fillText('平佐', textX, textY);
-                            if (hirasaSchedule === 4 || hirasaSchedule === '4') {
-                                ctx.font = '12px Arial';
-                                ctx.fillText('AMのみです。', textX, textY + 18);
-                                ctx.font = '14px Arial';
-                            }
-                        } else if (isHijoukinPresent) {
-                            ctx.fillText('非常勤', textX, textY);
-                        }
-                    } else {
-                        // 平日の処理
-                        if (isHayabuchiPresent) {
-                            ctx.fillText('早淵', textX, textY);
-                        } else if (isOiwaPresent && isHirasaPresent && (oiwaSchedule !== 4 && oiwaSchedule !== '4')) {
-                            // 大岩と平佐が両方いて、大岩が終日の場合
-                            ctx.fillText('大岩', textX, textY);
-                        } else if (hijoukinSchedule === 4 || hijoukinSchedule === '4') {
-                            // 非常勤医師がAMのみ
-                            ctx.fillText('AM：非常勤', textX, textY);
-                            ctx.fillText('PM：平佐', textX, textY + 18);
-                        } else if (oiwaSchedule === 4 || oiwaSchedule === '4') {
-                            // 大岩医師がAMのみ（平日は必ずPM平佐）
-                            ctx.fillText('AM：大岩', textX, textY);
-                            ctx.fillText('PM：平佐', textX, textY + 18);
-                        } else if (isOiwaPresent) {
-                            ctx.fillText('大岩', textX, textY);
-                        } else if (isHirasaPresent) {
-                            ctx.fillText('平佐', textX, textY);
-                        } else if (isHijoukinPresent) {
-                            ctx.fillText('非常勤', textX, textY);
-                        }
+
+                    if (display.mainText) {
+                        ctx.fillText(display.mainText, textX, textY);
+                    }
+                    if (display.subText) {
+                        ctx.font = '12px Arial';
+                        ctx.fillText(display.subText, textX, textY + 18);
                     }
                 }
             }
-            
-            // 下部の診療時間（シンプルに）
+
+            // 下部の診療時間
             ctx.font = '12px Arial';
             ctx.fillStyle = '#666';
             ctx.textAlign = 'center';
             const bottomY = canvas.height - 15;
             ctx.fillText('土曜 9:00-13:00 / 14:00-18:00　　日曜 9:00-13:00', canvas.width / 2, bottomY);
-            
-            // ダウンロードリンクを設定
+
+            // ダウンロードリンク設定
             canvas.toBlob((blob) => {
                 const url = URL.createObjectURL(blob);
                 downloadLink.href = url;
-                downloadLink.download = `${month}月診療カレンダー.png`;
+                downloadLink.download = `${state.month}月診療カレンダー.png`;
             });
-            
+
             canvasContainer.style.display = 'block';
         }
     </script>
