@@ -198,12 +198,34 @@
             min-width: 100px;
             font-weight: bold;
         }
-        .date-edit-row input {
+        .date-edit-row input[type="text"] {
             padding: 6px 10px;
             border: 1px solid #ccc;
             border-radius: 4px;
             font-size: 14px;
             width: 120px;
+        }
+        .date-edit-row .mark-checkboxes {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .date-edit-row .mark-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+        }
+        .date-edit-row .mark-checkbox input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+        .mark-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
         }
         .date-edit-row input:focus {
             outline: none;
@@ -411,6 +433,8 @@
             },
             // 日付別のカスタム表示
             dateCustomDisplay: {},
+            // 日付別のマーク設定（true=表示, false=非表示）
+            dateMarks: {},
             // 凡例設定
             legend: {
                 color1: '#2c5aa0',
@@ -519,6 +543,7 @@
             state.dayRow = [];
             state.scheduleData = {};
             state.dateCustomDisplay = {};
+            state.dateMarks = {};
 
             // データを解析
             for (let i = 0; i < data.length; i++) {
@@ -597,6 +622,26 @@
             buildDateEditUI();
         }
 
+        function calculateDefaultMarks(index) {
+            const day = state.dayRow[index];
+            const schedules = {};
+
+            Object.keys(state.scheduleData).forEach(nickname => {
+                const value = state.scheduleData[nickname][index];
+                if (value && value !== '') {
+                    schedules[nickname] = value;
+                }
+            });
+
+            // 外科・小児科マーク：大岩がいる日のみ（欅田は除外）
+            const showSurgery = !!schedules['ロックン'];
+
+            // 内視鏡マーク：平佐、内視鏡応援がいる日、または日曜日
+            const showEndoscopy = !!(schedules['ぽん'] || schedules['内視鏡応援'] || day === '日');
+
+            return { showSurgery, showEndoscopy };
+        }
+
         function buildDateEditUI() {
             const container = document.getElementById('dateEditContainer');
             container.innerHTML = '';
@@ -616,12 +661,28 @@
                 // 現在の表示内容を計算
                 const currentDisplay = calculateDisplayForDate(i);
 
+                // マーク設定を取得（未設定の場合はデフォルト値を計算）
+                const marks = state.dateMarks[i] || calculateDefaultMarks(i);
+                if (!state.dateMarks[i]) {
+                    state.dateMarks[i] = marks;
+                }
+
                 const row = document.createElement('div');
                 row.className = rowClass;
                 row.innerHTML = `
                     <div class="date-label">${state.month}/${date} (${day})${isHoliday ? ' 祝' : ''}</div>
                     <input type="text" data-date-index="${i}" value="${currentDisplay.mainText}" placeholder="メイン表示">
                     <input type="text" data-date-index="${i}" data-field="subText" value="${currentDisplay.subText}" placeholder="サブテキスト" class="sub-text-input">
+                    <div class="mark-checkboxes">
+                        <label class="mark-checkbox">
+                            <input type="checkbox" data-date-index="${i}" data-mark="surgery" ${marks.showSurgery ? 'checked' : ''}>
+                            <span class="mark-indicator" style="background-color: ${state.legend.color1}"></span>
+                        </label>
+                        <label class="mark-checkbox">
+                            <input type="checkbox" data-date-index="${i}" data-mark="endoscopy" ${marks.showEndoscopy ? 'checked' : ''}>
+                            <span class="mark-indicator" style="background-color: ${state.legend.color2}"></span>
+                        </label>
+                    </div>
                 `;
                 container.appendChild(row);
             }
@@ -742,14 +803,28 @@
 
             // 日付別表示を更新
             document.querySelectorAll('#dateEditContainer .date-edit-row').forEach(row => {
-                const inputs = row.querySelectorAll('input');
-                if (inputs.length >= 2) {
-                    const index = inputs[0].dataset.dateIndex;
+                const textInputs = row.querySelectorAll('input[type="text"]');
+                const checkboxes = row.querySelectorAll('input[type="checkbox"]');
+                if (textInputs.length >= 2) {
+                    const index = textInputs[0].dataset.dateIndex;
                     state.dateCustomDisplay[index] = {
-                        mainText: inputs[0].value,
-                        subText: inputs[1].value
+                        mainText: textInputs[0].value,
+                        subText: textInputs[1].value
                     };
                 }
+                // マーク設定を更新
+                checkboxes.forEach(cb => {
+                    const index = cb.dataset.dateIndex;
+                    const markType = cb.dataset.mark;
+                    if (!state.dateMarks[index]) {
+                        state.dateMarks[index] = { showSurgery: false, showEndoscopy: false };
+                    }
+                    if (markType === 'surgery') {
+                        state.dateMarks[index].showSurgery = cb.checked;
+                    } else if (markType === 'endoscopy') {
+                        state.dateMarks[index].showEndoscopy = cb.checked;
+                    }
+                });
             });
 
             // 凡例設定を更新
@@ -889,22 +964,16 @@
                     ctx.textAlign = 'left';
                     ctx.fillText(date, x + 10, y + 25);
 
-                    // 医師スケジュール判定
-                    const schedules = {};
-                    Object.keys(state.scheduleData).forEach(nickname => {
-                        const value = state.scheduleData[nickname][actualIndex];
-                        if (value && value !== '') {
-                            schedules[nickname] = value;
-                        }
-                    });
+                    // マーク設定を取得（未設定の場合はデフォルト値を計算）
+                    const marks = state.dateMarks[actualIndex] || calculateDefaultMarks(actualIndex);
 
                     // 丸印描画
                     let circleX = x + cellWidth - 25;
                     let circleY = y + 25;
                     let circleCount = 0;
 
-                    // 外科・小児科（大岩、欅田がいる日）
-                    if (schedules['ロックン'] || schedules['たか']) {
+                    // 外科・小児科マーク
+                    if (marks.showSurgery) {
                         ctx.fillStyle = state.legend.color1;
                         ctx.beginPath();
                         ctx.arc(circleX - (circleCount * 35), circleY, 13, 0, Math.PI * 2);
@@ -912,8 +981,8 @@
                         circleCount++;
                     }
 
-                    // 内視鏡（平佐、内視鏡応援がいる日、または日曜日）
-                    if (schedules['ぽん'] || schedules['内視鏡応援'] || day === '日') {
+                    // 内視鏡マーク
+                    if (marks.showEndoscopy) {
                         ctx.fillStyle = state.legend.color2;
                         ctx.beginPath();
                         ctx.arc(circleX - (circleCount * 35), circleY, 13, 0, Math.PI * 2);
