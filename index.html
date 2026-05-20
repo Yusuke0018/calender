@@ -608,6 +608,11 @@
             return ['日', '月', '火', '水', '木', '金', '土'][date.getDay()];
         }
 
+        function isSecondSunday(year, month, day) {
+            const dateValue = Number.parseInt(day, 10);
+            return dateValue >= 8 && dateValue <= 14 && getWeekday(year, month, dateValue) === '日';
+        }
+
         function rebuildDayRow() {
             state.dayRow = state.dateRow.map(date => {
                 if (!date || date === '') return '';
@@ -808,6 +813,10 @@
                     if (parseInt(schedules['非常勤']) >= 5) {
                         subText = '18時まで';
                     }
+                }
+
+                if (isSecondSunday(state.year, state.month, date)) {
+                    subText = '17時まで';
                 }
             } else if (isSaturday) {
                 // 土曜日
