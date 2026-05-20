@@ -532,8 +532,87 @@
         }
 
         function parseCSV(csvText) {
-            const lines = csvText.split('\n').map(line => line.split(','));
-            return lines;
+            const rows = [];
+            let row = [];
+            let field = '';
+            let inQuotes = false;
+
+            for (let i = 0; i < csvText.length; i++) {
+                const char = csvText[i];
+                const nextChar = csvText[i + 1];
+
+                if (char === '"' && inQuotes && nextChar === '"') {
+                    field += '"';
+                    i++;
+                } else if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    row.push(field.trim());
+                    field = '';
+                } else if ((char === '\n' || char === '\r') && !inQuotes) {
+                    if (char === '\r' && nextChar === '\n') {
+                        i++;
+                    }
+                    row.push(field.trim());
+                    if (row.some(cell => cell !== '')) {
+                        rows.push(row);
+                    }
+                    row = [];
+                    field = '';
+                } else {
+                    field += char;
+                }
+            }
+
+            row.push(field.trim());
+            if (row.some(cell => cell !== '')) {
+                rows.push(row);
+            }
+
+            return rows;
+        }
+
+        function parseYearMonth(value) {
+            const match = String(value || '').match(/(20\d{2})\s*[./年-]\s*(\d{1,2})/);
+            if (!match) return null;
+
+            const year = Number(match[1]);
+            const month = Number(match[2]);
+            if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+                return null;
+            }
+
+            return { year, month };
+        }
+
+        function getDateValue(index) {
+            const date = Number.parseInt(state.dateRow[index], 10);
+            return Number.isInteger(date) ? date : null;
+        }
+
+        function getDateObject(year, month, day) {
+            const date = new Date(Number(year), Number(month) - 1, Number(day), 12);
+            if (
+                date.getFullYear() !== Number(year) ||
+                date.getMonth() !== Number(month) - 1 ||
+                date.getDate() !== Number(day)
+            ) {
+                return null;
+            }
+            return date;
+        }
+
+        function getWeekday(year, month, day) {
+            const date = getDateObject(year, month, day);
+            if (!date) return '';
+            return ['日', '月', '火', '水', '木', '金', '土'][date.getDay()];
+        }
+
+        function rebuildDayRow() {
+            state.dayRow = state.dateRow.map(date => {
+                if (!date || date === '') return '';
+                return getWeekday(state.year, state.month, date);
+            });
         }
 
         function processCSV(csvText) {
@@ -549,16 +628,14 @@
             for (let i = 0; i < data.length; i++) {
                 const row = data[i];
 
-                // 年月を含む行を探す（2025または2026）
-                if (row[1] && (row[1].toString().includes('2025.') || row[1].toString().includes('2026.'))) {
+                // 年月を含む行を探す
+                const parsedYearMonth = parseYearMonth(row[1]);
+                if (parsedYearMonth) {
                     state.yearMonth = row[1];
-                    const [year, month] = state.yearMonth.split('.');
-                    state.year = year;
-                    state.month = month;
+                    state.year = parsedYearMonth.year;
+                    state.month = parsedYearMonth.month;
                     state.dateRow = row.slice(3, 34);
-                    if (i + 1 < data.length) {
-                        state.dayRow = data[i + 1].slice(3, 34);
-                    }
+                    rebuildDayRow();
                 }
 
                 // 医師のスケジュールを取得
@@ -623,7 +700,8 @@
         }
 
         function calculateDefaultMarks(index) {
-            const day = state.dayRow[index];
+            const date = getDateValue(index);
+            const day = getWeekday(state.year, state.month, date);
             const schedules = {};
 
             Object.keys(state.scheduleData).forEach(nickname => {
@@ -648,7 +726,7 @@
 
             for (let i = 0; i < state.dateRow.length; i++) {
                 const date = state.dateRow[i];
-                const day = state.dayRow[i];
+                const day = getWeekday(state.year, state.month, date);
 
                 if (!date || date === '') continue;
 
@@ -694,7 +772,8 @@
                 return state.dateCustomDisplay[index];
             }
 
-            const day = state.dayRow[index];
+            const date = getDateValue(index);
+            const day = getWeekday(state.year, state.month, date);
             const schedules = {};
 
             Object.keys(state.scheduleData).forEach(nickname => {
@@ -834,21 +913,95 @@
             state.legend.text2 = document.getElementById('legendText2').value;
         }
 
-        // 祝日判定（2025年・2026年対応）
+        function getEquinoxDay(year, type) {
+            const y = Number(year);
+            if (y < 1948 || y > 2099) return null;
+            if (type === 'spring') {
+                return Math.floor(20.8431 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4));
+            }
+            return Math.floor(23.2488 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4));
+        }
+
+        function nthMonday(year, month, nth) {
+            const firstDay = new Date(Number(year), Number(month) - 1, 1, 12).getDay();
+            return 1 + ((8 - firstDay) % 7) + (nth - 1) * 7;
+        }
+
+        function addHoliday(holidays, year, month, day, name) {
+            const date = getDateObject(year, month, day);
+            if (!date) return;
+            holidays.set(`${year}-${month}-${day}`, name);
+        }
+
+        function getJapaneseHolidays(year) {
+            const y = Number(year);
+            const holidays = new Map();
+
+            addHoliday(holidays, y, 1, 1, '元日');
+            addHoliday(holidays, y, 1, nthMonday(y, 1, 2), '成人の日');
+            addHoliday(holidays, y, 2, 11, '建国記念の日');
+            if (y >= 2020) addHoliday(holidays, y, 2, 23, '天皇誕生日');
+            addHoliday(holidays, y, 3, getEquinoxDay(y, 'spring'), '春分の日');
+            addHoliday(holidays, y, 4, 29, '昭和の日');
+            addHoliday(holidays, y, 5, 3, '憲法記念日');
+            addHoliday(holidays, y, 5, 4, 'みどりの日');
+            addHoliday(holidays, y, 5, 5, 'こどもの日');
+            addHoliday(holidays, y, 7, nthMonday(y, 7, 3), '海の日');
+            addHoliday(holidays, y, 8, 11, '山の日');
+            addHoliday(holidays, y, 9, nthMonday(y, 9, 3), '敬老の日');
+            addHoliday(holidays, y, 9, getEquinoxDay(y, 'autumn'), '秋分の日');
+            addHoliday(holidays, y, 10, nthMonday(y, 10, 2), 'スポーツの日');
+            addHoliday(holidays, y, 11, 3, '文化の日');
+            addHoliday(holidays, y, 11, 23, '勤労感謝の日');
+
+            const sortedKeys = Array.from(holidays.keys()).sort((a, b) => {
+                const [ay, am, ad] = a.split('-').map(Number);
+                const [by, bm, bd] = b.split('-').map(Number);
+                return new Date(ay, am - 1, ad) - new Date(by, bm - 1, bd);
+            });
+
+            sortedKeys.forEach(key => {
+                const [holidayYear, holidayMonth, holidayDay] = key.split('-').map(Number);
+                const date = getDateObject(holidayYear, holidayMonth, holidayDay);
+                if (!date || date.getDay() !== 0) return;
+
+                const substitute = new Date(holidayYear, holidayMonth - 1, holidayDay + 1, 12);
+                while (holidays.has(`${substitute.getFullYear()}-${substitute.getMonth() + 1}-${substitute.getDate()}`)) {
+                    substitute.setDate(substitute.getDate() + 1);
+                }
+                if (substitute.getFullYear() === y) {
+                    addHoliday(
+                        holidays,
+                        substitute.getFullYear(),
+                        substitute.getMonth() + 1,
+                        substitute.getDate(),
+                        '振替休日'
+                    );
+                }
+            });
+
+            for (let month = 1; month <= 12; month++) {
+                const daysInMonth = new Date(y, month, 0, 12).getDate();
+                for (let day = 2; day < daysInMonth; day++) {
+                    const previousKey = `${y}-${month}-${day - 1}`;
+                    const currentKey = `${y}-${month}-${day}`;
+                    const nextKey = `${y}-${month}-${day + 1}`;
+                    if (!holidays.has(currentKey) && holidays.has(previousKey) && holidays.has(nextKey)) {
+                        addHoliday(holidays, y, month, day, '国民の休日');
+                    }
+                }
+            }
+
+            return holidays;
+        }
+
+        // 祝日判定
         function isHolidayDate(year, month, day) {
-            const key = `${year}-${parseInt(month)}-${parseInt(day)}`;
-            const holidays = new Set([
-                // 2025年
-                '2025-1-1', '2025-1-13', '2025-2-11', '2025-2-23', '2025-2-24',
-                '2025-3-20', '2025-4-29', '2025-5-3', '2025-5-4', '2025-5-5', '2025-5-6',
-                '2025-7-21', '2025-8-11', '2025-9-15', '2025-9-23',
-                '2025-10-13', '2025-11-3', '2025-11-23', '2025-11-24',
-                // 2026年
-                '2026-1-1', '2026-1-12', '2026-2-11', '2026-2-23',
-                '2026-3-20', '2026-4-29', '2026-5-3', '2026-5-4', '2026-5-5', '2026-5-6',
-                '2026-7-20', '2026-8-11', '2026-9-21', '2026-9-22', '2026-9-23',
-                '2026-10-12', '2026-11-3', '2026-11-23'
-            ]);
+            const y = Number(year);
+            const m = Number.parseInt(month, 10);
+            const d = Number.parseInt(day, 10);
+            const key = `${y}-${m}-${d}`;
+            const holidays = getJapaneseHolidays(y);
             return holidays.has(key);
         }
 
@@ -859,9 +1012,11 @@
             const dayHeaderHeight = 40;
             const cols = 7;
 
-            const firstDay = state.dayRow[0];
+            const firstDateIndex = state.dateRow.findIndex(d => d && d !== '');
+            const firstDate = firstDateIndex >= 0 ? state.dateRow[firstDateIndex] : 1;
+            const firstDay = getWeekday(state.year, state.month, firstDate);
             const dayMap = {'日': 0, '月': 1, '火': 2, '水': 3, '木': 4, '金': 5, '土': 6};
-            const startOffset = dayMap[firstDay] || 0;
+            const startOffset = dayMap[firstDay] ?? 0;
 
             const totalDays = state.dateRow.filter(d => d && d !== '').length;
             const rows = Math.ceil((totalDays + startOffset) / 7);
@@ -939,7 +1094,7 @@
                     const x = col * cellWidth + 20;
                     const y = row * cellHeight + headerHeight + dayHeaderHeight;
                     const date = state.dateRow[actualIndex];
-                    const day = state.dayRow[actualIndex];
+                    const day = getWeekday(state.year, state.month, date);
 
                     // セル背景色
                     const isHoliday = isHolidayDate(state.year, state.month, date);
