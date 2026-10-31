@@ -34,6 +34,41 @@
             border-bottom: 2px solid #2c5aa0;
             padding-bottom: 8px;
         }
+        .sheet-area {
+            border: 2px solid #2c5aa0;
+            border-radius: 10px;
+            padding: 24px;
+            text-align: center;
+            margin-bottom: 16px;
+            background-color: #f0f6ff;
+        }
+        .sheet-area p {
+            margin: 0 0 12px;
+            color: #2c5aa0;
+            font-weight: bold;
+        }
+        .sheet-area select {
+            font-size: 16px;
+            padding: 10px 14px;
+            border: 1px solid #b8c7e0;
+            border-radius: 6px;
+            min-width: 260px;
+            background: white;
+        }
+        .sheet-area .sheet-note {
+            margin: 10px 0 0;
+            font-size: 12px;
+            font-weight: normal;
+            color: #666;
+        }
+        .upload-area.compact {
+            padding: 16px;
+        }
+        .upload-area.compact p {
+            margin: 0 0 8px;
+            font-size: 13px;
+            color: #666;
+        }
         .upload-area {
             border: 2px dashed #ccc;
             border-radius: 10px;
@@ -346,8 +381,16 @@
     <div class="container">
         <h1>クリニック診療カレンダー生成システム</h1>
 
-        <div class="upload-area" id="uploadArea">
-            <p>CSVファイルをドラッグ＆ドロップまたはクリックして選択</p>
+        <div class="sheet-area">
+            <p>勤務表から自動で作成します（CSV不要）</p>
+            <select id="sheetSelect" disabled>
+                <option value="">勤務表を確認中…</option>
+            </select>
+            <p class="sheet-note">月を切り替えると、その月のカレンダーを作り直します。</p>
+        </div>
+
+        <div class="upload-area compact" id="uploadArea">
+            <p>勤務表を読めないときは、CSVファイルをドラッグ＆ドロップまたはクリックして選択</p>
             <label for="fileInput" class="upload-button">ファイルを選択</label>
             <input type="file" id="fileInput" accept=".csv">
         </div>
@@ -501,6 +544,115 @@
             if (state.rawData) {
                 processCSV(state.rawData);
                 showStatus('初期状態に戻しました。', 'success');
+            }
+        });
+
+        // ===== 勤務表（Googleスプレッドシート）から自動で作成する =====
+        // シートは「リンクを知っている全員」が見られる設定なので、ログインもCSVの書き出しも不要。
+        const SHIFT_SHEET_ID = '1zSr05Iwp8nUtZQLzd6R3GruhSgaMxNyRt5hNlHIWyKI';
+        const SHIFT_SHEET_BASE = `https://docs.google.com/spreadsheets/d/${SHIFT_SHEET_ID}`;
+        const sheetSelect = document.getElementById('sheetSelect');
+        let shiftSheets = [];
+
+        // htmlview 内の JavaScript 文字列（\x26 や 　 など）を元の文字に戻す
+        function decodeJsString(value) {
+            return value
+                .replace(/\\x([0-9a-fA-F]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+                .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+                .replace(/\\(.)/g, '$1');
+        }
+
+        // htmlview のシート一覧から「2026.11」「2026.11 実勤務」形式のシートだけを取り出す
+        function parseSheetList(html) {
+            const sheets = [];
+            const re = /items\.push\(\{name:\s*"((?:[^"\\]|\\.)*)"[\s\S]{0,500}?gid:\s*"(-?\d+)"/g;
+            for (const m of html.matchAll(re)) {
+                const name = decodeJsString(m[1]).trim();
+                const ym = /^(\d{4})\.(\d{1,2})(.*)$/.exec(name);
+                if (!ym) continue;
+                const month = Number(ym[2]);
+                if (month < 1 || month > 12) continue;
+                sheets.push({ name, gid: m[2], year: Number(ym[1]), month, suffix: ym[3].trim() });
+            }
+            return sheets;
+        }
+
+        // 先月以降のシートを、古い月から順に（同じ月は予定→実勤務の順に）並べる
+        function selectRecentSheets(sheets, now) {
+            const fromIndex = now.getFullYear() * 12 + now.getMonth() - 1;
+            return sheets
+                .filter(s => s.year * 12 + (s.month - 1) >= fromIndex)
+                .sort((a, b) => (a.year * 12 + a.month) - (b.year * 12 + b.month) || a.suffix.localeCompare(b.suffix, 'ja'));
+        }
+
+        // 最初に開く月：来月の予定シート（なければ今月、それもなければ一覧の最後）
+        function pickDefaultSheet(sheets, now) {
+            const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+            const find = (d) => sheets.findIndex(s => s.year === d.getFullYear() && s.month === d.getMonth() + 1 && !s.suffix);
+            const nextIdx = find(next);
+            if (nextIdx >= 0) return nextIdx;
+            const thisIdx = find(now);
+            if (thisIdx >= 0) return thisIdx;
+            return sheets.length - 1;
+        }
+
+        function sheetLabel(sheet) {
+            return `${sheet.year}年${sheet.month}月${sheet.suffix ? `（${sheet.suffix}）` : ''}`;
+        }
+
+        function setSheetSelectMessage(text) {
+            sheetSelect.innerHTML = '';
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = text;
+            sheetSelect.appendChild(opt);
+            sheetSelect.disabled = true;
+        }
+
+        async function loadShiftSheet(sheet) {
+            showStatus(`${sheetLabel(sheet)}の勤務表を読み込み中…`, 'success');
+            const res = await fetch(`${SHIFT_SHEET_BASE}/export?format=csv&gid=${sheet.gid}`, { credentials: 'omit', cache: 'no-store' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const csvData = await res.text();
+            if (/^\s*<(!doctype|html)/i.test(csvData)) throw new Error('勤務表の共有設定を確認してください');
+            state.rawData = csvData;
+            processCSV(csvData);
+            showStatus(`${sheetLabel(sheet)}の勤務表からカレンダーを生成しました。編集パネルで内容をカスタマイズできます。`, 'success');
+        }
+
+        async function initShiftSheets() {
+            try {
+                const res = await fetch(`${SHIFT_SHEET_BASE}/htmlview`, { credentials: 'omit', cache: 'no-store' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const now = new Date();
+                shiftSheets = selectRecentSheets(parseSheetList(await res.text()), now);
+                if (shiftSheets.length === 0) throw new Error('月のシートが見つかりません');
+                sheetSelect.innerHTML = '';
+                shiftSheets.forEach((sheet, idx) => {
+                    const opt = document.createElement('option');
+                    opt.value = String(idx);
+                    opt.textContent = sheetLabel(sheet);
+                    sheetSelect.appendChild(opt);
+                });
+                const defaultIdx = pickDefaultSheet(shiftSheets, now);
+                sheetSelect.value = String(defaultIdx);
+                sheetSelect.disabled = false;
+                await loadShiftSheet(shiftSheets[defaultIdx]);
+            } catch (error) {
+                setSheetSelectMessage('勤務表を読めませんでした（下のCSVを使ってください）');
+                showStatus('勤務表の読み込みに失敗しました: ' + error.message, 'error');
+                console.error('Error:', error);
+            }
+        }
+
+        sheetSelect.addEventListener('change', async () => {
+            const sheet = shiftSheets[Number(sheetSelect.value)];
+            if (!sheet) return;
+            try {
+                await loadShiftSheet(sheet);
+            } catch (error) {
+                showStatus('勤務表の読み込みに失敗しました: ' + error.message, 'error');
+                console.error('Error:', error);
             }
         });
 
@@ -1188,6 +1340,9 @@
 
             canvasContainer.style.display = 'block';
         }
+
+        // 開いたら勤務表を読み、来月のカレンダーを自動で作る
+        initShiftSheets();
     </script>
 </body>
 </html>
