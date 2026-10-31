@@ -61,48 +61,6 @@
             font-weight: normal;
             color: #666;
         }
-        .upload-area.compact {
-            padding: 16px;
-        }
-        .upload-area.compact p {
-            margin: 0 0 8px;
-            font-size: 13px;
-            color: #666;
-        }
-        .upload-area {
-            border: 2px dashed #ccc;
-            border-radius: 10px;
-            padding: 40px;
-            text-align: center;
-            margin-bottom: 30px;
-            background-color: #fafafa;
-            transition: all 0.3s;
-        }
-        .upload-area:hover {
-            border-color: #2c5aa0;
-            background-color: #f0f8ff;
-        }
-        .upload-area.drag-over {
-            border-color: #2c5aa0;
-            background-color: #e6f2ff;
-        }
-        input[type="file"] {
-            display: none;
-        }
-        .upload-button {
-            display: inline-block;
-            padding: 12px 30px;
-            background-color: #2c5aa0;
-            color: white;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            transition: background-color 0.3s;
-            border: none;
-        }
-        .upload-button:hover {
-            background-color: #1e3d6f;
-        }
         .canvas-container {
             text-align: center;
             margin-top: 20px;
@@ -382,17 +340,11 @@
         <h1>クリニック診療カレンダー生成システム</h1>
 
         <div class="sheet-area">
-            <p>勤務表から自動で作成します（CSV不要）</p>
+            <p>勤務表から自動で作成します</p>
             <select id="sheetSelect" disabled>
                 <option value="">勤務表を確認中…</option>
             </select>
             <p class="sheet-note">月を切り替えると、その月のカレンダーを作り直します。</p>
-        </div>
-
-        <div class="upload-area compact" id="uploadArea">
-            <p>勤務表を読めないときは、CSVファイルをドラッグ＆ドロップまたはクリックして選択</p>
-            <label for="fileInput" class="upload-button">ファイルを選択</label>
-            <input type="file" id="fileInput" accept=".csv">
         </div>
 
         <div class="status" id="status"></div>
@@ -409,7 +361,7 @@
 
             <!-- 医師名設定タブ -->
             <div class="tab-content active" id="doctor-names">
-                <p style="color: #666; margin-bottom: 15px;">CSVのニックネームに対応する表示名を設定できます。</p>
+                <p style="color: #666; margin-bottom: 15px;">勤務表のニックネームに対応する表示名を設定できます。</p>
                 <div class="doctor-mapping" id="doctorMapping">
                     <!-- 動的に生成 -->
                 </div>
@@ -488,8 +440,6 @@
         };
 
         // DOM要素
-        const fileInput = document.getElementById('fileInput');
-        const uploadArea = document.getElementById('uploadArea');
         const statusEl = document.getElementById('status');
         const canvasContainer = document.getElementById('canvasContainer');
         const canvas = document.getElementById('calendarCanvas');
@@ -507,30 +457,6 @@
             });
         });
 
-        // ドラッグ＆ドロップイベント
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('drag-over');
-        });
-
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('drag-over');
-        });
-
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('drag-over');
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                handleFile(files[0]);
-            }
-        });
-
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                handleFile(e.target.files[0]);
-            }
-        });
 
         // 再生成ボタン
         document.getElementById('regenerateBtn').addEventListener('click', () => {
@@ -548,7 +474,7 @@
         });
 
         // ===== 勤務表（Googleスプレッドシート）から自動で作成する =====
-        // シートは「リンクを知っている全員」が見られる設定なので、ログインもCSVの書き出しも不要。
+        // シートは「リンクを知っている全員」が見られる設定なので、ログイン不要。CSVファイルのアップロードは受け付けない。
         const SHIFT_SHEET_ID = '1zSr05Iwp8nUtZQLzd6R3GruhSgaMxNyRt5hNlHIWyKI';
         const SHIFT_SHEET_BASE = `https://docs.google.com/spreadsheets/d/${SHIFT_SHEET_ID}`;
         const sheetSelect = document.getElementById('sheetSelect');
@@ -639,7 +565,7 @@
                 sheetSelect.disabled = false;
                 await loadShiftSheet(shiftSheets[defaultIdx]);
             } catch (error) {
-                setSheetSelectMessage('勤務表を読めませんでした（下のCSVを使ってください）');
+                setSheetSelectMessage('勤務表を読めませんでした（ページを再読み込みしてください）');
                 showStatus('勤務表の読み込みに失敗しました: ' + error.message, 'error');
                 console.error('Error:', error);
             }
@@ -655,27 +581,6 @@
                 console.error('Error:', error);
             }
         });
-
-        function handleFile(file) {
-            if (!file.name.endsWith('.csv')) {
-                showStatus('CSVファイルを選択してください。', 'error');
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const csvData = e.target.result;
-                    state.rawData = csvData;
-                    processCSV(csvData);
-                    showStatus('カレンダーを生成しました。編集パネルで内容をカスタマイズできます。', 'success');
-                } catch (error) {
-                    showStatus('エラーが発生しました: ' + error.message, 'error');
-                    console.error('Error:', error);
-                }
-            };
-            reader.readAsText(file);
-        }
 
         function showStatus(message, type) {
             statusEl.textContent = message;
